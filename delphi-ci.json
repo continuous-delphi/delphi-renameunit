@@ -1,0 +1,58 @@
+{
+  "root": "./",
+  "defaults": {
+    "clean": {
+      "level": "deep",
+      "outputLevel": "Quiet"
+    },
+    "build": {
+      "engine": "MSBuild",
+      "toolchain": { "version": "Latest" },
+      "platform": "Win64",
+      "configuration": "Debug",
+      "verbosity": "minimal"
+    },
+    "run": {
+      "timeoutSeconds": 10
+    }
+  },
+  "pipeline": [
+    {
+      "action": "Clean",
+      "jobs": [
+        { "name": "Repo clean", "root": "./" }
+      ]
+    },
+    {
+      "action": "IncVer",
+      "jobs": [
+        {
+          "name": "Coverage version",
+          "file": "source/Delphi.RenameUnit.Info.pas",
+          "target": "Text",
+          "style": "WinVer",
+          "part": "build",
+          "pattern": "(?m)^\\s*Version\\s*=\\s*'([^']+)';"
+        }
+      ]
+    },
+    {
+      "action": "Build",
+      "jobs": [
+        { "name": "CLI-Win64",
+          "projectFile": "projects/cli/Delphi.RenameUnit.dproj" },
+        { "name": "Test-Win64",
+          "projectFile": "test/Delphi.RenameUnit.Tests.dproj",
+          "defines": ["CI"] }
+      ]
+    },
+    {
+      "action": "Run",
+      "jobs": [
+        { "name": "Tests-Win64",
+          "execute": "test/Win64/Debug/Delphi.RenameUnit.Tests.exe",
+          "arguments": ["-b", "-l:Warning", "-cm:Quiet"] }
+      ]
+    }
+  ]
+}
