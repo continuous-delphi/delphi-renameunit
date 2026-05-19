@@ -1,0 +1,153 @@
+---
+Title: Fix wrong program name in PrintUsage help text (copy/paste error)
+Issue: #1
+Labels: 
+Body:
+`PrintUsage` in `Delphi.RenameUnit.dpr` line 35 prints:
+
+```
+Usage: Delphi.Lexer.RenameUnit <from-unit> <to-unit> [options]
+```
+
+Should be:
+
+```
+Usage: Delphi.RenameUnit <from-unit> <to-unit> [options]
+```
+
+Acceptance criteria:
+- [ ] Help text shows `Delphi.RenameUnit`, not `Delphi.Lexer.RenameUnit`
+---
+Title: Fix wrong header comments in Engine.pas and .dpr (copy/paste error)
+Issue: #2
+Labels: 
+Body:
+Both `source/Delphi.RenameUnit.Engine.pas` and `projects/cli/Delphi.RenameUnit.dpr`
+have the delphi-lexer boilerplate header instead of delphi-renameunit:
+
+- Wrong project name (`delphi-lexer`)
+- Wrong URL (`https://github.com/continuous-delphi/delphi-lexer`)
+- Wrong description (lexer description instead of rename tool)
+
+Should reference `delphi-renameunit` at `https://github.com/continuous-delphi/delphi-renameunit`.
+
+Acceptance criteria:
+- [ ] Engine.pas header references delphi-renameunit
+- [ ] .dpr header references delphi-renameunit
+---
+Title: Log after-line extracted at wrong offset in modified source
+Issue: #3
+Labels: bug
+Body:
+In `ProcessFile` (Engine.pas line 548), after applying replacements the "after" line
+is extracted from `Modified` using the original source offset:
+
+```delphi
+AfterLine := ExtractSourceLine(Modified, FReplacements[I].StartOffset);
+```
+
+`FReplacements[I].StartOffset` is a 0-based offset into the **original** source.
+After replacements that change string length (which is nearly always the case),
+this offset points to the wrong position in `Modified`, producing an incorrect
+or garbage "after" line in the log.
+
+Fix approach: extract the after-line by re-tokenizing, by tracking cumulative
+offset shifts, or by extracting the line from `Modified` using line number
+rather than byte offset.
+
+Acceptance criteria:
+- [ ] Log after-lines correctly reflect the replacement result
+- [ ] Add a test that verifies log output for a rename that changes name length
+---
+Title: TStringList round-trip may alter .dproj line endings
+Issue: #4
+Labels: bug
+Body:
+`ProcessDprojFile` reads source into a string, then assigns it to `TStringList.Text`
+(line 609), and later reads back via `Lines.Text` (line 660). This round-trip:
+
+- Normalizes all line endings to CRLF (sLineBreak)
+- May add a trailing line break if one was absent
+
+For .dproj files that use LF-only endings or have no trailing newline, the output
+will differ from the input beyond the intended DCCReference replacements. This
+creates unnecessary diffs and could cause merge conflicts.
+
+Fix approach: operate on the raw source string directly (find/replace the
+`Include="..."` attribute value) rather than splitting into TStringList lines.
+
+Acceptance criteria:
+- [ ] .dproj files are not modified beyond the intended DCCReference replacements
+- [ ] Line endings and trailing newline state are preserved
+---
+Title: ProcessFile adds UTF-8 BOM to .pas/.dpr/.dpk files
+Issue: #5
+Labels: bug
+Body:
+`ProcessFile` line 562 writes modified source files using:
+
+```delphi
+TFile.WriteAllText(FilePath, Source, TEncoding.UTF8);
+```
+
+`TEncoding.UTF8` includes the 3-byte BOM preamble. If the original file had no BOM
+(common for .pas/.dpr/.dpk), the tool silently prepends one. This creates unwanted
+diffs and may confuse tools that don't expect BOM in source files.
+
+The .dproj path (ProcessDprojFile line 661) is fine since RAD Studio writes .dproj
+with BOM.
+
+Fix approach: use a BOM-less UTF-8 encoding for ProcessFile writes. For example,
+create a `TUTF8EncodingNoBOM` or use `TEncoding.UTF8` with preamble stripped.
+Alternatively, detect whether the original file had a BOM and preserve that state.
+
+Acceptance criteria:
+- [ ] .pas/.dpr/.dpk files are written without BOM (unless they originally had one)
+- [ ] .dproj files continue to be written with BOM
+---
+Title: Run always returns 0 -- no distinct exit code for no-op
+Issue: #6
+Labels: enhancement
+Body:
+`TRenameEngine.Run` always returns 0 (line 762). The .dpr sets `ExitCode` from
+this value. For scripting and CI use, a distinct exit code when no replacements
+were found would be useful (e.g. exit 0 = changes made, exit 1 = error,
+exit 2 = no matches found).
+
+Acceptance criteria:
+- [ ] `Run` returns a non-zero exit code when no replacements were made
+- [ ] Document exit codes in `--help` output and README
+---
+Title: No validation that FromUnit differs from ToUnit
+Issue: #7
+Labels: enhancement
+Body:
+No check prevents `FromUnit = ToUnit` (e.g. `Delphi.RenameUnit Foo Foo`).
+This silently scans every file and reports 0 replacements with no indication
+that the arguments were redundant. A warning on stderr would help catch typos.
+
+Acceptance criteria:
+- [ ] Warn on stderr when FromUnit equals ToUnit (case-insensitive)
+- [ ] Same check for each pair loaded from a --map file
+---
+Title: Add test coverage for dry-run, recurse, log, and edge cases
+Issue: #8
+Labels: enhancement, testing
+Body:
+Current tests cover core rename logic well but miss several CLI behaviors
+and edge cases:
+
+- **--dry-run**: verify files are NOT modified
+- **--recurse**: verify subdirectory scanning
+- **--log**: verify log file content (would have caught the offset bug in #3)
+- **Dotted unit file rename**: e.g. `Vcl.OldForm.pas` -> `Vcl.NewForm.pas`
+- **Implementation uses clause**: only interface uses is currently tested
+- **.dproj with relative paths**: e.g. `..\..\source\MyUnit.pas`
+- **Multiple pairs hitting the same file**: overlapping scoped references
+
+Acceptance criteria:
+- [ ] At least one test for --dry-run (file unchanged)
+- [ ] At least one test for --recurse
+- [ ] At least one test for --log content correctness
+- [ ] At least one test for dotted unit physical file rename
+- [ ] At least one test for implementation uses clause
