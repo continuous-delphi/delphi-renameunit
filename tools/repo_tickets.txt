@@ -139,6 +139,7 @@ Acceptance criteria:
 ---
 Title: Add test coverage for dry-run, recurse, log, and edge cases
 Issue: #8
+Status: closed
 Labels: enhancement, testing
 Body:
 Current tests cover core rename logic well but miss several CLI behaviors

@@ -27,6 +27,8 @@ type
     procedure WriteTestFile(const FileName, Content:string);
     function ReadTestFile(const FileName:string):string;
     function RunRename(const FromUnit, ToUnit:string):Integer;
+    function RunRenameDryRun(const FromUnit, ToUnit:string):Integer;
+    function RunRenameRecurse(const FromUnit, ToUnit:string):Integer;
     function RunRenameWithLog(const FromUnit, ToUnit:string):string;
     function RunRenameMap(const Pairs:TArray<TRenamePair>):Integer;
   public
@@ -74,6 +76,26 @@ type
     // ---- Batch rename ----
 
     [Test] procedure BatchRename_MultiplePairs;
+
+    // ---- Dry-run ----
+
+    [Test] procedure DryRun_FilesNotModified;
+
+    // ---- Recurse ----
+
+    [Test] procedure Recurse_SubdirectoryFilesProcessed;
+
+    // ---- Dotted unit file rename ----
+
+    [Test] procedure UnitDecl_DottedName_FileRenamed;
+
+    // ---- Implementation uses clause ----
+
+    [Test] procedure UsesClause_ImplementationSection_Renamed;
+
+    // ---- .dproj with relative paths ----
+
+    [Test] procedure Dproj_RelativePath_Renamed;
 
     // ---- Log output ----
 
@@ -129,6 +151,54 @@ begin
     Options.Dir := FTestDir;
     Options.FileSpec := '*.pas;*.dpr;*.dpk;*.dproj';
     Options.Recurse := False;
+    Options.DryRun := False;
+    Options.Verbose := False;
+    Options.LogFile := '';
+    Options.MapFile := '';
+    Result := Engine.Run(Options);
+  finally
+    Engine.Free;
+  end;
+end;
+
+
+function TRenameEngineTests.RunRenameDryRun(const FromUnit, ToUnit:string):Integer;
+var
+  Engine:TRenameEngine;
+  Options:TRenameOptions;
+  Pair:TRenamePair;
+begin
+  Pair.FromUnit := FromUnit;
+  Pair.ToUnit := ToUnit;
+  Engine := TRenameEngine.Create([Pair]);
+  try
+    Options.Dir := FTestDir;
+    Options.FileSpec := '*.pas;*.dpr;*.dpk;*.dproj';
+    Options.Recurse := False;
+    Options.DryRun := True;
+    Options.Verbose := False;
+    Options.LogFile := '';
+    Options.MapFile := '';
+    Result := Engine.Run(Options);
+  finally
+    Engine.Free;
+  end;
+end;
+
+
+function TRenameEngineTests.RunRenameRecurse(const FromUnit, ToUnit:string):Integer;
+var
+  Engine:TRenameEngine;
+  Options:TRenameOptions;
+  Pair:TRenamePair;
+begin
+  Pair.FromUnit := FromUnit;
+  Pair.ToUnit := ToUnit;
+  Engine := TRenameEngine.Create([Pair]);
+  try
+    Options.Dir := FTestDir;
+    Options.FileSpec := '*.pas;*.dpr;*.dpk;*.dproj';
+    Options.Recurse := True;
     Options.DryRun := False;
     Options.Verbose := False;
     Options.LogFile := '';
@@ -498,6 +568,100 @@ begin
   Assert.Contains(Content, 'NewB');
   Assert.DoesNotContain(Content, 'UnitA');
   Assert.DoesNotContain(Content, 'UnitB');
+end;
+
+
+// ---------------------------------------------------------------------------
+// Dry-run
+// ---------------------------------------------------------------------------
+
+procedure TRenameEngineTests.DryRun_FilesNotModified;
+begin
+  WriteTestFile('Consumer.pas',
+    'unit Consumer;'#13#10 +
+    'interface'#13#10 +
+    'uses MyUnit;'#13#10 +
+    'implementation'#13#10 +
+    'end.');
+  var Original := ReadTestFile('Consumer.pas');
+  RunRenameDryRun('MyUnit', 'NewUnit');
+  Assert.AreEqual(Original, ReadTestFile('Consumer.pas'), 'file should be unchanged after dry-run');
+end;
+
+
+// ---------------------------------------------------------------------------
+// Recurse
+// ---------------------------------------------------------------------------
+
+procedure TRenameEngineTests.Recurse_SubdirectoryFilesProcessed;
+var
+  SubDir:string;
+begin
+  SubDir := TPath.Combine(FTestDir, 'sub');
+  TDirectory.CreateDirectory(SubDir);
+  TFile.WriteAllText(TPath.Combine(SubDir, 'Deep.pas'),
+    'unit Deep;'#13#10 +
+    'interface'#13#10 +
+    'uses MyUnit;'#13#10 +
+    'implementation'#13#10 +
+    'end.', TEncoding.UTF8);
+  RunRenameRecurse('MyUnit', 'NewUnit');
+  var Content := TFile.ReadAllText(TPath.Combine(SubDir, 'Deep.pas'), TEncoding.UTF8);
+  Assert.Contains(Content, 'uses NewUnit;', 'subdirectory file should be renamed');
+end;
+
+
+// ---------------------------------------------------------------------------
+// Dotted unit file rename
+// ---------------------------------------------------------------------------
+
+procedure TRenameEngineTests.UnitDecl_DottedName_FileRenamed;
+begin
+  WriteTestFile('Vcl.OldForm.pas',
+    'unit Vcl.OldForm;'#13#10 +
+    'interface'#13#10 +
+    'implementation'#13#10 +
+    'end.');
+  RunRename('Vcl.OldForm', 'Vcl.NewForm');
+  Assert.IsFalse(FileExists(TPath.Combine(FTestDir, 'Vcl.OldForm.pas')),
+    'old file should not exist');
+  Assert.IsTrue(FileExists(TPath.Combine(FTestDir, 'Vcl.NewForm.pas')),
+    'new file should exist');
+  Assert.Contains(ReadTestFile('Vcl.NewForm.pas'), 'unit Vcl.NewForm;');
+end;
+
+
+// ---------------------------------------------------------------------------
+// Implementation uses clause
+// ---------------------------------------------------------------------------
+
+procedure TRenameEngineTests.UsesClause_ImplementationSection_Renamed;
+begin
+  WriteTestFile('Consumer.pas',
+    'unit Consumer;'#13#10 +
+    'interface'#13#10 +
+    'implementation'#13#10 +
+    'uses MyUnit;'#13#10 +
+    'end.');
+  RunRename('MyUnit', 'NewUnit');
+  Assert.Contains(ReadTestFile('Consumer.pas'), 'uses NewUnit;');
+end;
+
+
+// ---------------------------------------------------------------------------
+// .dproj with relative paths
+// ---------------------------------------------------------------------------
+
+procedure TRenameEngineTests.Dproj_RelativePath_Renamed;
+begin
+  WriteTestFile('Test.dproj',
+    '<Project>'#13#10 +
+    '    <ItemGroup>'#13#10 +
+    '        <DCCReference Include="..\..\source\MyUnit.pas"/>'#13#10 +
+    '    </ItemGroup>'#13#10 +
+    '</Project>');
+  RunRename('MyUnit', 'NewUnit');
+  Assert.Contains(ReadTestFile('Test.dproj'), 'Include="..\..\source\NewUnit.pas"');
 end;
 
 
