@@ -111,6 +111,9 @@ type
     // Extract a source line by 1-based line number.
     class function ExtractSourceLineByNumber(const Source:string; LineNumber:Integer):string; static;
 
+    // Returns True if the file starts with a UTF-8 BOM (EF BB BF).
+    class function FileHasUTF8BOM(const FilePath:string):Boolean; static;
+
     // Process one source file (token-based).  Returns replacement count.
     function ProcessFile(const FilePath:string; DryRun, Verbose:Boolean):Integer;
 
@@ -531,6 +534,22 @@ begin
 end;
 
 
+class function TRenameEngine.FileHasUTF8BOM(const FilePath:string):Boolean;
+var
+  Stream:TFileStream;
+  BOM:array[0..2] of Byte;
+  BytesRead:Integer;
+begin
+  Stream := TFileStream.Create(FilePath, fmOpenRead or fmShareDenyNone);
+  try
+    BytesRead := Stream.Read(BOM, 3);
+    Result := (BytesRead = 3) and (BOM[0] = $EF) and (BOM[1] = $BB) and (BOM[2] = $BF);
+  finally
+    Stream.Free;
+  end;
+end;
+
+
 function TRenameEngine.ProcessFile(const FilePath:string; DryRun, Verbose:Boolean):Integer;
 var
   Source, Modified:string;
@@ -541,7 +560,10 @@ var
   BeforeLine, AfterLine:string;
   AllReplacements:TList<TReplacement>;
   MatchedPairIndex:Integer;
+  HasBOM:Boolean;
+  WriteEncoding:TEncoding;
 begin
+  HasBOM := FileHasUTF8BOM(FilePath);
   Source := TLexerUtils.ReadAllText(FilePath, TEncoding.UTF8, False);
   AllReplacements := TList<TReplacement>.Create;
   try
@@ -603,7 +625,19 @@ begin
       Exit;
 
     if not DryRun then
-      TFile.WriteAllText(FilePath, Source, TEncoding.UTF8);
+    begin
+      if HasBOM then
+        TFile.WriteAllText(FilePath, Source, TEncoding.UTF8)
+      else
+      begin
+        WriteEncoding := TUTF8Encoding.Create(False);
+        try
+          TFile.WriteAllText(FilePath, Source, WriteEncoding);
+        finally
+          WriteEncoding.Free;
+        end;
+      end;
+    end;
 
     // Rename the physical file when the unit declaration matched and
     // the filename corresponds to the old unit name.
