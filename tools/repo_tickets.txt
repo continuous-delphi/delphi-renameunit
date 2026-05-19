@@ -1,7 +1,8 @@
 ---
 Title: Fix wrong program name in PrintUsage help text (copy/paste error)
 Issue: #1
-Labels: 
+Status: closed
+Labels:
 Body:
 `PrintUsage` in `Delphi.RenameUnit.dpr` line 35 prints:
 
@@ -20,7 +21,8 @@ Acceptance criteria:
 ---
 Title: Fix wrong header comments in Engine.pas and .dpr (copy/paste error)
 Issue: #2
-Labels: 
+Status: closed
+Labels:
 Body:
 Both `source/Delphi.RenameUnit.Engine.pas` and `projects/cli/Delphi.RenameUnit.dpr`
 have the delphi-lexer boilerplate header instead of delphi-renameunit:
@@ -37,6 +39,7 @@ Acceptance criteria:
 ---
 Title: Log after-line extracted at wrong offset in modified source
 Issue: #3
+Status: closed
 Labels: bug
 Body:
 In `ProcessFile` (Engine.pas line 548), after applying replacements the "after" line

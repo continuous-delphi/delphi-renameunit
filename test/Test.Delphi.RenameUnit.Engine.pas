@@ -27,6 +27,7 @@ type
     procedure WriteTestFile(const FileName, Content:string);
     function ReadTestFile(const FileName:string):string;
     function RunRename(const FromUnit, ToUnit:string):Integer;
+    function RunRenameWithLog(const FromUnit, ToUnit:string):string;
     function RunRenameMap(const Pairs:TArray<TRenamePair>):Integer;
   public
     [Setup]    procedure Setup;
@@ -73,6 +74,10 @@ type
     // ---- Batch rename ----
 
     [Test] procedure BatchRename_MultiplePairs;
+
+    // ---- Log output ----
+
+    [Test] procedure Log_AfterLine_CorrectWhenNameLengthChanges;
 
     // ---- Map file ----
 
@@ -132,6 +137,33 @@ begin
   finally
     Engine.Free;
   end;
+end;
+
+
+function TRenameEngineTests.RunRenameWithLog(const FromUnit, ToUnit:string):string;
+var
+  Engine:TRenameEngine;
+  Options:TRenameOptions;
+  Pair:TRenamePair;
+  LogPath:string;
+begin
+  Pair.FromUnit := FromUnit;
+  Pair.ToUnit := ToUnit;
+  Engine := TRenameEngine.Create([Pair]);
+  try
+    LogPath := TPath.Combine(FTestDir, '_rename.log');
+    Options.Dir := FTestDir;
+    Options.FileSpec := '*.pas;*.dpr;*.dpk;*.dproj';
+    Options.Recurse := False;
+    Options.DryRun := False;
+    Options.Verbose := False;
+    Options.LogFile := LogPath;
+    Options.MapFile := '';
+    Engine.Run(Options);
+  finally
+    Engine.Free;
+  end;
+  Result := TFile.ReadAllText(LogPath, TEncoding.UTF8);
 end;
 
 
@@ -466,6 +498,28 @@ begin
   Assert.Contains(Content, 'NewB');
   Assert.DoesNotContain(Content, 'UnitA');
   Assert.DoesNotContain(Content, 'UnitB');
+end;
+
+
+// ---------------------------------------------------------------------------
+// Log output
+// ---------------------------------------------------------------------------
+
+procedure TRenameEngineTests.Log_AfterLine_CorrectWhenNameLengthChanges;
+// Renaming a short name to a longer name shifts offsets.  The log after-line
+// must reflect the modified source, not garbage from a stale offset.
+begin
+  WriteTestFile('Consumer.pas',
+    'unit Consumer;'#13#10 +
+    'interface'#13#10 +
+    'uses X;'#13#10 +
+    'implementation'#13#10 +
+    'end.');
+  var Log := RunRenameWithLog('X', 'VeryLongUnitName');
+  // The after-line in the log should contain the new unit name.
+  Assert.Contains(Log, 'uses VeryLongUnitName;', 'after-line should show renamed unit');
+  // The before-line should contain the original.
+  Assert.Contains(Log, 'uses X;', 'before-line should show original');
 end;
 
 

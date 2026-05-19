@@ -106,8 +106,10 @@ type
     function RenameInPath(const PathToken:string):string;
 
     // Extract the source line containing the given 0-based offset.
-    class function ExtractSourceLine(const Source:string;
-      Offset:Integer):string; static;
+    class function ExtractSourceLine(const Source:string; Offset:Integer):string; static;
+
+    // Extract a source line by 1-based line number.
+    class function ExtractSourceLineByNumber(const Source:string; LineNumber:Integer):string; static;
 
     // Process one source file (token-based).  Returns replacement count.
     function ProcessFile(const FilePath:string; DryRun, Verbose:Boolean):Integer;
@@ -486,6 +488,49 @@ begin
 end;
 
 
+class function TRenameEngine.ExtractSourceLineByNumber(const Source:string; LineNumber:Integer):string;
+var
+  I, Len, CurrentLine, LineStart:Integer;
+begin
+  Len := System.Length(Source);
+  CurrentLine := 1;
+  LineStart := 1;
+  I := 1;
+  while I <= Len do
+  begin
+    if CurrentLine = LineNumber then
+    begin
+      // Find end of this line.
+      while (I <= Len) and not CharInSet(Source[I], [#10, #13]) do
+        Inc(I);
+      Result := TrimRight(Copy(Source, LineStart, I - LineStart));
+      Exit;
+    end;
+    if Source[I] = #13 then
+    begin
+      Inc(I);
+      if (I <= Len) and (Source[I] = #10) then
+        Inc(I);
+      Inc(CurrentLine);
+      LineStart := I;
+    end
+    else if Source[I] = #10 then
+    begin
+      Inc(I);
+      Inc(CurrentLine);
+      LineStart := I;
+    end
+    else
+      Inc(I);
+  end;
+  // If we reached the end and we're on the target line, return remainder.
+  if CurrentLine = LineNumber then
+    Result := TrimRight(Copy(Source, LineStart, Len - LineStart + 1))
+  else
+    Result := '';
+end;
+
+
 function TRenameEngine.ProcessFile(const FilePath:string; DryRun, Verbose:Boolean):Integer;
 var
   Source, Modified:string;
@@ -539,7 +584,7 @@ begin
           for I := 0 to FReplacements.Count - 1 do
           begin
             BeforeLine := ExtractSourceLine(Source, FReplacements[I].StartOffset);
-            AfterLine := ExtractSourceLine(Modified, FReplacements[I].StartOffset);
+            AfterLine := ExtractSourceLineByNumber(Modified, FReplacements[I].Line);
             FLog.WriteLine(Format('%s(%d,%d)', [FilePath, FReplacements[I].Line, FReplacements[I].Col]));
             FLog.WriteLine('  - ' + BeforeLine);
             FLog.WriteLine('  + ' + AfterLine);
