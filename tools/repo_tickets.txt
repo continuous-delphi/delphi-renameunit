@@ -159,3 +159,29 @@ Acceptance criteria:
 - [ ] At least one test for --log content correctness
 - [ ] At least one test for dotted unit physical file rename
 - [ ] At least one test for implementation uses clause
+---
+Title: Rename companion .dfm/.fmx file when renaming a unit file
+Issue: #9
+Status: closed
+Labels: enhancement
+Body:
+When `ProcessFile` renames a `.pas` file because its unit declaration matches,
+companion form files (`.dfm` for VCL, `.fmx` for FireMonkey) are left behind
+with the old name. RAD Studio expects the form filename to match the unit
+filename, so the project breaks.
+
+After renaming `OldUnit.pas` to `NewUnit.pas`, check for `OldUnit.dfm` and
+`OldUnit.fmx` in the same directory and rename them to `NewUnit.dfm` /
+`NewUnit.fmx` respectively. Only the filename changes -- the contents of
+`.dfm`/`.fmx` files do not need modification.
+
+The same logic should apply in dry-run mode (report the rename without
+performing it) and in log output.
+
+Acceptance criteria:
+- [ ] Companion `.dfm` file is renamed alongside the `.pas` file
+- [ ] Companion `.fmx` file is renamed alongside the `.pas` file
+- [ ] Dry-run reports the companion rename without performing it
+- [ ] Log output includes the companion file rename
+- [ ] Test for `.dfm` companion rename
+- [ ] Test for case where no companion file exists (no error)

@@ -77,6 +77,13 @@ type
 
     [Test] procedure BatchRename_MultiplePairs;
 
+    // ---- Companion file rename ----
+
+    [Test] procedure CompanionDfm_RenamedWithUnit;
+    [Test] procedure CompanionFmx_RenamedWithUnit;
+    [Test] procedure CompanionNone_NoError;
+    [Test] procedure CompanionDfm_DryRun_NotRenamed;
+
     // ---- Dry-run ----
 
     [Test] procedure DryRun_FilesNotModified;
@@ -568,6 +575,74 @@ begin
   Assert.Contains(Content, 'NewB');
   Assert.DoesNotContain(Content, 'UnitA');
   Assert.DoesNotContain(Content, 'UnitB');
+end;
+
+
+// ---------------------------------------------------------------------------
+// Companion file rename
+// ---------------------------------------------------------------------------
+
+procedure TRenameEngineTests.CompanionDfm_RenamedWithUnit;
+begin
+  WriteTestFile('MyForm.pas',
+    'unit MyForm;'#13#10 +
+    'interface'#13#10 +
+    'implementation'#13#10 +
+    'end.');
+  WriteTestFile('MyForm.dfm', 'object Form1: TForm1'#13#10'end');
+  RunRename('MyForm', 'NewForm');
+  Assert.IsFalse(FileExists(TPath.Combine(FTestDir, 'MyForm.dfm')),
+    'old .dfm should not exist');
+  Assert.IsTrue(FileExists(TPath.Combine(FTestDir, 'NewForm.dfm')),
+    'new .dfm should exist');
+end;
+
+
+procedure TRenameEngineTests.CompanionFmx_RenamedWithUnit;
+begin
+  WriteTestFile('MyForm.pas',
+    'unit MyForm;'#13#10 +
+    'interface'#13#10 +
+    'implementation'#13#10 +
+    'end.');
+  WriteTestFile('MyForm.fmx', 'object Form1: TForm1'#13#10'end');
+  RunRename('MyForm', 'NewForm');
+  Assert.IsFalse(FileExists(TPath.Combine(FTestDir, 'MyForm.fmx')),
+    'old .fmx should not exist');
+  Assert.IsTrue(FileExists(TPath.Combine(FTestDir, 'NewForm.fmx')),
+    'new .fmx should exist');
+end;
+
+
+procedure TRenameEngineTests.CompanionNone_NoError;
+// Renaming a unit file with no companion form should not error.
+begin
+  WriteTestFile('MyUnit.pas',
+    'unit MyUnit;'#13#10 +
+    'interface'#13#10 +
+    'implementation'#13#10 +
+    'end.');
+  RunRename('MyUnit', 'NewUnit');
+  Assert.IsTrue(FileExists(TPath.Combine(FTestDir, 'NewUnit.pas')),
+    'renamed .pas should exist');
+  Assert.IsFalse(FileExists(TPath.Combine(FTestDir, 'NewUnit.dfm')),
+    'no .dfm should be created');
+end;
+
+
+procedure TRenameEngineTests.CompanionDfm_DryRun_NotRenamed;
+begin
+  WriteTestFile('MyForm.pas',
+    'unit MyForm;'#13#10 +
+    'interface'#13#10 +
+    'implementation'#13#10 +
+    'end.');
+  WriteTestFile('MyForm.dfm', 'object Form1: TForm1'#13#10'end');
+  RunRenameDryRun('MyForm', 'NewForm');
+  Assert.IsTrue(FileExists(TPath.Combine(FTestDir, 'MyForm.pas')),
+    '.pas should still exist after dry-run');
+  Assert.IsTrue(FileExists(TPath.Combine(FTestDir, 'MyForm.dfm')),
+    '.dfm should still exist after dry-run');
 end;
 
 

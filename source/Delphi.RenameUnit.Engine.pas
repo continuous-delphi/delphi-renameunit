@@ -556,7 +556,7 @@ var
   Tokens:TTokenList;
   I, P:Integer;
   UnitDeclMatched, PairDeclMatched:Boolean;
-  BaseName, Ext, Dir, NewPath:string;
+  BaseName, Ext, Dir, NewPath, CompanionOld, CompanionNew:string;
   BeforeLine, AfterLine:string;
   AllReplacements:TList<TReplacement>;
   MatchedPairIndex:Integer;
@@ -661,6 +661,26 @@ begin
         if FLog <> nil then
           FLog.WriteLine(Format('FILE RENAME: %s -> %s', [FilePath, NewPath]));
         Inc(FTotalFileRenames);
+
+        // Rename companion form files (.dfm, .fmx) if they exist.
+        for Ext in ['.dfm', '.fmx'] do
+        begin
+          CompanionOld := Dir + BaseName + Ext;
+          if FileExists(CompanionOld) then
+          begin
+            CompanionNew := Dir + FToUnit + Ext;
+            if DryRun then
+              Writeln(Format('  rename: %s -> %s', [BaseName + Ext, FToUnit + Ext]))
+            else
+            begin
+              TFile.Move(CompanionOld, CompanionNew);
+              Writeln(Format('  renamed: %s -> %s', [BaseName + Ext, FToUnit + Ext]));
+            end;
+            if FLog <> nil then
+              FLog.WriteLine(Format('FILE RENAME: %s -> %s', [CompanionOld, CompanionNew]));
+            Inc(FTotalFileRenames);
+          end;
+        end;
       end;
     end;
   finally
