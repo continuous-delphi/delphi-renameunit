@@ -1,0 +1,48 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{371A50B8-B359-49A4-B480-3E12B151EB7D}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="projects\cli\Delphi.RenameUnit.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="test\Delphi.RenameUnit.Tests.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="Delphi_RenameUnit">
+        <MSBuild Projects="projects\cli\Delphi.RenameUnit.dproj"/>
+    </Target>
+    <Target Name="Delphi_RenameUnit:Clean">
+        <MSBuild Projects="projects\cli\Delphi.RenameUnit.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Delphi_RenameUnit:Make">
+        <MSBuild Projects="projects\cli\Delphi.RenameUnit.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Delphi_RenameUnit_Tests">
+        <MSBuild Projects="test\Delphi.RenameUnit.Tests.dproj"/>
+    </Target>
+    <Target Name="Delphi_RenameUnit_Tests:Clean">
+        <MSBuild Projects="test\Delphi.RenameUnit.Tests.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Delphi_RenameUnit_Tests:Make">
+        <MSBuild Projects="test\Delphi.RenameUnit.Tests.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="Delphi_RenameUnit;Delphi_RenameUnit_Tests"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="Delphi_RenameUnit:Clean;Delphi_RenameUnit_Tests:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="Delphi_RenameUnit:Make;Delphi_RenameUnit_Tests:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>
