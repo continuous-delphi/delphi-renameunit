@@ -640,73 +640,84 @@ function TRenameEngine.ProcessDprojFile(const FilePath:string;
 // Text-based replacement in .dproj XML files.  Scans for DCCReference
 // Include attributes and replaces unit filenames that match any rename pair.
 // No XML parser needed -- the patterns are simple and well-defined.
+// Operates directly on the raw source string to preserve line endings,
+// trailing newline state, and BOM exactly as read.
 var
-  Source, Modified, Line, OldFileName, NewFileName, OldBase, Ext:string;
-  Lines:TStringList;
-  I, P, Pos1, Pos2:Integer;
+  Source, OldFileName, NewFileName, OldBase, Ext, BeforeLine, AfterLine:string;
+  SearchPos, Pos1, Pos2, P, LineNum:Integer;
   Changed:Boolean;
+  IncludeTag:string;
 begin
   Result := 0;
-  Lines := TStringList.Create;
-  try
-    Source := TLexerUtils.ReadAllText(FilePath, TEncoding.UTF8, False);
-    Lines.Text := Source;
-    Changed := False;
+  LineNum := 0;
+  Source := TLexerUtils.ReadAllText(FilePath, TEncoding.UTF8, False);
+  Changed := False;
+  IncludeTag := 'Include="';
+  SearchPos := 1;
 
-    for I := 0 to Lines.Count - 1 do
+  while SearchPos <= System.Length(Source) do
+  begin
+    Pos1 := PosEx(IncludeTag, Source, SearchPos);
+    if Pos1 = 0 then
+      Break;
+    Pos1 := Pos1 + System.Length(IncludeTag);
+    Pos2 := PosEx('"', Source, Pos1);
+    if Pos2 = 0 then
+      Break;
+
+    OldFileName := Copy(Source, Pos1, Pos2 - Pos1);
+    Ext := ExtractFileExt(OldFileName);
+    OldBase := ChangeFileExt(ExtractFileName(OldFileName), '');
+
+    for P := 0 to High(FPairs) do
     begin
-      Line := Lines[I];
-      // Look for DCCReference Include="..." or Include="...\..."
-      Pos1 := Pos('Include="', Line);
-      if Pos1 = 0 then
-        Continue;
-      Pos1 := Pos1 + System.Length('Include="');
-      Pos2 := PosEx('"', Line, Pos1);
-      if Pos2 = 0 then
-        Continue;
-
-      OldFileName := Copy(Line, Pos1, Pos2 - Pos1);
-      Ext := ExtractFileExt(OldFileName);
-      OldBase := ChangeFileExt(ExtractFileName(OldFileName), '');
-
-      for P := 0 to High(FPairs) do
+      if SameText(OldBase, string.Join('.', FPairParts[P])) then
       begin
-        if SameText(OldBase, string.Join('.', FPairParts[P])) then
-        begin
-          // Replace the filename portion, preserving directory path.
-          NewFileName := Copy(OldFileName, 1,
-            System.Length(OldFileName) - System.Length(ExtractFileName(OldFileName)))
-            + FPairs[P].ToUnit + Ext;
-          Lines[I] := Copy(Line, 1, Pos1 - 1) + NewFileName +
-                      Copy(Line, Pos2, MaxInt);
-          Changed := True;
-          Inc(Result);
+        NewFileName := Copy(OldFileName, 1, System.Length(OldFileName) - System.Length(ExtractFileName(OldFileName))) + FPairs[P].ToUnit + Ext;
 
-          if Verbose or DryRun then
-          begin
-            if Result = 1 then
-              Writeln(FilePath);
-            Writeln(Format('  %s -> %s', [OldFileName, NewFileName]));
-          end;
-          if FLog <> nil then
-          begin
-            FLog.WriteLine(Format('%s(%d)', [FilePath, I + 1]));
-            FLog.WriteLine('  - ' + TrimLeft(Line));
-            FLog.WriteLine('  + ' + TrimLeft(Lines[I]));
-          end;
-          Break;
+        if Verbose or DryRun then
+        begin
+          if Result = 0 then
+            Writeln(FilePath);
+          Writeln(Format('  %s -> %s', [OldFileName, NewFileName]));
         end;
+        if FLog <> nil then
+        begin
+          // Compute 1-based line number for log output.
+          LineNum := 1;
+          var J:Integer;
+          for J := 1 to Pos1 - 1 do
+            if Source[J] = #10 then
+              Inc(LineNum);
+          BeforeLine := TrimLeft(ExtractSourceLineByNumber(Source, LineNum));
+        end;
+
+        // Splice the new filename into the source string.
+        Source := Copy(Source, 1, Pos1 - 1) + NewFileName + Copy(Source, Pos2, MaxInt);
+        Changed := True;
+        Inc(Result);
+
+        if FLog <> nil then
+        begin
+          AfterLine := TrimLeft(ExtractSourceLineByNumber(Source, LineNum));
+          FLog.WriteLine(Format('%s(%d)', [FilePath, LineNum]));
+          FLog.WriteLine('  - ' + BeforeLine);
+          FLog.WriteLine('  + ' + AfterLine);
+        end;
+
+        // Advance past the replacement.
+        SearchPos := Pos1 + System.Length(NewFileName) + 1;
+        Break;
       end;
     end;
 
-    if Changed and not DryRun then
-    begin
-      Modified := Lines.Text;
-      TFile.WriteAllText(FilePath, Modified, TEncoding.UTF8);
-    end;
-  finally
-    Lines.Free;
+    // If no pair matched, advance past this Include attribute.
+    if (P > High(FPairs)) then
+      SearchPos := Pos2 + 1;
   end;
+
+  if Changed and not DryRun then
+    TFile.WriteAllText(FilePath, Source, TEncoding.UTF8);
 end;
 
 

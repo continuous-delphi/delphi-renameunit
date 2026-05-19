@@ -64,6 +64,7 @@ Acceptance criteria:
 ---
 Title: TStringList round-trip may alter .dproj line endings
 Issue: #4
+Status: closed
 Labels: bug
 Body:
 `ProcessDprojFile` reads source into a string, then assigns it to `TStringList.Text`
