@@ -17,6 +17,7 @@ program Delphi.RenameUnit;
 uses
   System.SysUtils,
   System.IOUtils,
+  System.Generics.Collections,
   Delphi.RenameUnit.Engine in '..\..\source\Delphi.RenameUnit.Engine.pas',
   Delphi.Token in '..\..\submodules\delphi-lexer\source\Delphi.Token.pas',
   Delphi.Token.TriviaSpan in '..\..\submodules\delphi-lexer\source\Delphi.Token.TriviaSpan.pas',
@@ -51,6 +52,11 @@ begin
   Writeln('  --log <file>       Write detailed change log to <file>');
   Writeln('  -?, --help         Show usage');
   Writeln;
+  Writeln('Exit codes:');
+  Writeln('  0  Changes were made (or dry-run found matches)');
+  Writeln('  1  Error (bad arguments, missing directory, etc.)');
+  Writeln('  2  No matching references found');
+  Writeln;
   Writeln('Examples:');
   Writeln('  Delphi.RenameUnit MyUnit NewUnit');
   Writeln('  Delphi.RenameUnit MyCompany.OldUnit MyCompany.NewUnit --dir C:\MyProject --recurse');
@@ -66,6 +72,7 @@ var
   Arg:string;
   Engine:TRenameEngine;
   Pairs:TArray<TRenamePair>;
+  FilteredPairs:TList<TRenamePair>;
   Pair:TRenamePair;
 
 begin
@@ -185,6 +192,26 @@ begin
         System.ExitCode := 1;
         Exit;
       end;
+      // Filter out identity pairs (FromUnit = ToUnit).
+      FilteredPairs := TList<TRenamePair>.Create;
+      try
+        for I := 0 to High(Pairs) do
+        begin
+          if SameText(Pairs[I].FromUnit, Pairs[I].ToUnit) then
+            Writeln(ErrOutput, Format('Warning: skipping identity pair: %s=%s', [Pairs[I].FromUnit, Pairs[I].ToUnit]))
+          else
+            FilteredPairs.Add(Pairs[I]);
+        end;
+        Pairs := FilteredPairs.ToArray;
+      finally
+        FilteredPairs.Free;
+      end;
+      if System.Length(Pairs) = 0 then
+      begin
+        Writeln(ErrOutput, 'Error: No valid rename pairs remain after filtering identity pairs.');
+        System.ExitCode := 1;
+        Exit;
+      end;
       Writeln(Format('Loaded %d rename pair(s) from %s', [System.Length(Pairs), Options.MapFile]));
     end
     else
@@ -201,6 +228,12 @@ begin
       end;
       Options.FromUnit := Positionals[0];
       Options.ToUnit := Positionals[1];
+      if SameText(Options.FromUnit, Options.ToUnit) then
+      begin
+        Writeln(ErrOutput, 'Warning: <from-unit> and <to-unit> are identical: ' + Options.FromUnit);
+        System.ExitCode := 2;
+        Exit;
+      end;
       Pair.FromUnit := Options.FromUnit;
       Pair.ToUnit := Options.ToUnit;
       Pairs := [Pair];

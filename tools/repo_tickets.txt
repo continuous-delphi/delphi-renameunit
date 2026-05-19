@@ -112,6 +112,7 @@ Acceptance criteria:
 ---
 Title: Run always returns 0 -- no distinct exit code for no-op
 Issue: #6
+Status: closed
 Labels: enhancement
 Body:
 `TRenameEngine.Run` always returns 0 (line 762). The .dpr sets `ExitCode` from
@@ -125,6 +126,7 @@ Acceptance criteria:
 ---
 Title: No validation that FromUnit differs from ToUnit
 Issue: #7
+Status: closed
 Labels: enhancement
 Body:
 No check prevents `FromUnit = ToUnit` (e.g. `Delphi.RenameUnit Foo Foo`).

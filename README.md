@@ -56,6 +56,14 @@ Delphi.RenameUnit --map <file> [options]
 | `--log <file>`      | Write detailed change log to a file                          |
 | `-?`, `--help`      | Show usage                                                   |
 
+### Exit codes
+
+| Code | Meaning |
+|------|---------|
+| 0    | Changes were made (or dry-run found matches) |
+| 1    | Error (bad arguments, missing directory, etc.) |
+| 2    | No matching references found |
+
 ### Examples
 
 Rename a single unit:

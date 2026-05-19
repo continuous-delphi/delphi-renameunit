@@ -848,7 +848,10 @@ begin
     FLog := nil;
   end;
 
-  Result := 0;
+  if FTotalReplacements > 0 then
+    Result := 0
+  else
+    Result := 2;
 end;
 
 
