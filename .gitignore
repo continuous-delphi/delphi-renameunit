@@ -114,3 +114,8 @@ TestInsightSettings.ini
 /.claude
 /memory
 commit*
+coverage.db
+*.json
+*.html
+*.xml
+lcov.info

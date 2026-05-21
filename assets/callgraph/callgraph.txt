@@ -1,0 +1,19 @@
+radCallGraph 0.1.0
+Files: 2
+Nodes: 17 (1 classes, 0 standalone)
+Edges: 56
+
+TRenameEngine (17 methods)
+  SplitUnitName, MatchTokenSequence, PrecededByDot, FollowedByDot, AddReplacement, FindReplacements, ApplyReplacements, RenameInPath, ExtractSourceLine, ExtractSourceLineByNumber, FileHasUTF8BOM, ProcessFile, ProcessDprojFile, LoadMapFile, Create, Destroy, Run
+
+Top callers:
+  TRenameEngine.FindReplacements  12 calls
+  TRenameEngine.ProcessFile  7 calls
+  TRenameEngine.Create  4 calls
+  TRenameEngine.ProcessDprojFile  4 calls
+  TRenameEngine.Run  4 calls
+  TRenameEngine.Destroy  3 calls
+  TRenameEngine.AddReplacement  2 calls
+  TRenameEngine.ApplyReplacements  2 calls
+  TRenameEngine.ExtractSourceLine  2 calls
+  TRenameEngine.ExtractSourceLineByNumber  2 calls
