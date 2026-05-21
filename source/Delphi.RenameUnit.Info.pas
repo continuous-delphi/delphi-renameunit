@@ -3,7 +3,7 @@ unit Delphi.RenameUnit.Info;
 interface
 
 const
-  Version = '0.1.13.0';
+  Version = '0.1.14.0';
 
 implementation
 
