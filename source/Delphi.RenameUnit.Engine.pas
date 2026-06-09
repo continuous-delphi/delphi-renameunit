@@ -336,14 +336,23 @@ begin
       while (NextI < Tokens.Count) and
             (Tokens[NextI].Kind in [tkWhitespace, tkEOL]) do
         Inc(NextI);
-      if MatchTokenSequence(Tokens, NextI, FFromParts, EndIdx) then
+      if MatchTokenSequence(Tokens, NextI, FFromParts, EndIdx) and
+         not FollowedByDot(Tokens, EndIdx) then
       begin
         UnitDeclMatched := True;
         AddReplacement(Tokens, NextI, EndIdx, FToUnit);
         I := EndIdx + 1;
         Continue;
       end;
-      Inc(I);
+      // Skip past the entire unit name to the semicolon so the scoped
+      // reference handler does not re-process the unit name tokens.
+      // Without this, a shorter pair (e.g. Delphi.Lexer) would match
+      // the prefix of a longer unit name (e.g. Delphi.Lexer.Scanner)
+      // via the scoped reference path which omits FollowedByDot.
+      while (NextI < Tokens.Count) and
+            not ((Tokens[NextI].Kind = tkSymbol) and (Tokens[NextI].Text = ';')) do
+        Inc(NextI);
+      I := NextI + 1;
       Continue;
     end;
 

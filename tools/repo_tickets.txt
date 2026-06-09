@@ -185,3 +185,73 @@ Acceptance criteria:
 - [ ] Log output includes the companion file rename
 - [ ] Test for `.dfm` companion rename
 - [ ] Test for case where no companion file exists (no error)
+---
+Title: Unit declaration handler matches prefix of longer dotted unit name
+Issue: #10
+Labels: bug
+Status: closed
+Body:
+The unit declaration handler in `FindReplacements` (Engine.pas line 339) does
+not check `FollowedByDot` after matching a token sequence. When processing a
+map file with sequential pairs, a shorter unit name matches as a prefix of a
+longer one in the `unit` declaration, corrupting the longer name.
+
+### Reproduction
+
+Map file (pairs applied in order):
+```
+Delphi.Lexer=Prefixed.Delphi.Lexer
+Delphi.Lexer.Scanner=Prefixed.Delphi.Lexer.Scanner
+```
+
+Source file `Delphi.Lexer.Scanner.pas`:
+```pascal
+unit Delphi.Lexer.Scanner;
+```
+
+After processing:
+1. Pair `Delphi.Lexer` fires on the unit declaration -- matches
+   `Delphi.Lexer` (2 parts), no FollowedByDot check, replaces it.
+   Declaration becomes `unit Prefixed.Delphi.Lexer.Scanner;`
+2. Pair `Delphi.Lexer.Scanner` runs next -- looks for `Delphi.Lexer.Scanner`
+   but finds `Prefixed.Delphi.Lexer.Scanner` -- no match.
+3. File is NOT renamed (unit declaration no longer matches the pair).
+
+The uses clause handler (line 384-386) is NOT affected because it checks
+`not FollowedByDot(Tokens, EndIdx)` and correctly rejects prefix matches.
+
+### Root cause
+
+Line 339:
+```pascal
+if MatchTokenSequence(Tokens, NextI, FFromParts, EndIdx) then
+```
+
+Missing: `and not FollowedByDot(Tokens, EndIdx)`.
+
+In a `unit` declaration, the unit name is always complete -- a dot following
+the matched sequence means the match is a prefix, not the full name.
+
+### Fix
+
+Add the FollowedByDot guard to the unit declaration match:
+
+```pascal
+if MatchTokenSequence(Tokens, NextI, FFromParts, EndIdx) and
+   not FollowedByDot(Tokens, EndIdx) then
+```
+
+### Workaround
+
+Sort map entries by name length descending (longest first) so longer names
+are renamed before shorter prefixes can interfere. This is what
+radFormatter's `sync-parser.ps1` does. The workaround is reliable but the
+tool should be correct regardless of map entry order.
+
+### Acceptance criteria
+
+- [ ] Unit declaration handler rejects prefix matches via FollowedByDot
+- [ ] Map entry order does not affect correctness for hierarchical names
+- [ ] Test: `Delphi.Lexer` does not match inside `unit Delphi.Lexer.Scanner;`
+- [ ] Test: `Delphi.Lexer.Scanner` still matches `unit Delphi.Lexer.Scanner;`
+- [ ] Existing tests still pass
